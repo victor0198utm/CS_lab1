@@ -1,3 +1,76 @@
+#
+# This script is Copyright (C) 2004-2021 and is owned by Tenable, Inc. or an Affiliate thereof.
+#
+# This script is released under the Tenable Subscription License and
+# may not be used from within scripts released under another license
+# without authorization from Tenable, Inc.
+#
+# See the following licenses for details:
+#
+# http://static.tenable.com/prod_docs/Nessus_6_SLA_and_Subscription_Agreement.pdf
+#
+# @PROFESSIONALFEED@
+# $Revision: 1.1 $
+# $Date: 2021/06/17 $
+#
+# description : This document implements the security configuration as recommended by the
+#               CIS Ubuntu Linux 20.04 LTS Benchmark
+#
+#<ui_metadata>
+#<display_name>CIS Ubuntu Linux 20.04 LTS Workstation L1 v1.1.0</display_name>
+#<spec>
+#  <type>CIS</type>
+#  <name>Ubuntu Linux 20.04 LTS Workstation L1</name>
+#  <version>1.1.0</version>
+#  <link>https://workbench.cisecurity.org/files/3228</link>
+#</spec>
+#<labels>unix,cis,ubuntu,linux,ubuntulinux_20,agent</labels>
+#<benchmark_refs>LEVEL,CSCv6,CSCv7,CIS_Recommendation</benchmark_refs>
+#<variables>
+#  <variable>
+#    <name>BANNER_TEXT</name>
+#    <default>All activities performed on this system will be monitored.</default>
+#    <description>Banner Text</description>
+#    <info>This is the text for the warning a user receives when logging onto the system.</info>
+#  </variable>
+#  <variable>
+#    <name>NTP_SERVER</name>
+#    <default>0.pool.ntp.org</default>
+#    <description>NTP server address</description>
+#    <info>The IP address or FQDN of the Network Time Protocol (NTP) server for your organization.</info>
+#  </variable>
+#  <variable>
+#    <name>FALLBACK_NTP_SERVER</name>
+#    <default>ntp.ubuntu.com</default>
+#    <description>Fallback NTP server</description>
+#    <info>The IP address or FQDN of the Fallback Network Time Protocol (NTP) server for your organization. Only applies if timesyncd is used</info>
+#  </variable>
+#  <variable>
+#    <name>ROOT_DISTANCE_MAX_SEC</name>
+#    <default>5</default>
+#    <description>Maximum Acceptable Root Distance</description>
+#    <info>The Maximum time to connect to a root server (in seconds). Only applies if timesyncd is used</info>
+#  </variable>
+#  <variable>
+#    <name>SYSLOG_SERVER</name>
+#    <default>192\.168\.0\.1</default>
+#    <description>Log server</description>
+#    <info>Host address of the sytem log server for the target to send logs to.</info>
+#  </variable>
+#  <variable>
+#    <name>PAM_DENY_VALUE</name>
+#    <default>5</default>
+#    <description>PAM Max Password Attempts Value</description>
+#    <info>Maximum number of password attempts for PAM Common Auth settings that conform to your site policy.</info>
+#  </variable>
+#  <variable>
+#    <name>PAM_LOCKOUT_VALUE</name>
+#    <default>900</default>
+#    <description>PAM Account Lockout Delay Value</description>
+#    <info>Account lockout delay for PAM Common Auth settings that conform to your site policy.</info>
+#  </variable>
+#</variables>
+#</ui_metadata>
 
 <check_type:"Unix">
 

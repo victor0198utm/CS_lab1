@@ -7,29 +7,52 @@ audit_format = ''
 
 def read(filename):
 	f = open(filename, "r")
-	return f.read()
+	audit_format = f.read()
+	
+	offset = 0
+	idx1, idx2 = 0, 0
+	while True:
+		idx1, idx2 = opened_tag_indices(audit_format[offset:])
+		
+		print(audit_format[idx1:idx2])
+		tag, parameter = get_valid_tag(audit_format[idx1:idx2])
+
+		audit_format = audit_format[idx1+2:]
+
+		if tag:
+			break
+		else:
+			offset = offset + idx2
+
+	print(f'{idx1=} {idx2=}')
+	print('->',audit_format[:500])
+	return audit_format
 
 def get_valid_tag(tag_to_check):
 	tag_list = ['check_type', 'if', 'condition', 'then', 'else', 'report', 'custom_item', 'item']
-	print(f'{tag_to_check=}')
-	begin, end = re.search('<[a-z_]+', tag_to_check).span()
-	tag_name = tag_to_check[1 + begin: end]
+	# print(f'{tag_to_check=}')
 
-	tag_w_parameter = re.search('<[a-z_\s]+[:|>]+"([^"]*)">', tag_to_check)
-	parameter = None
-	if tag_w_parameter:
-		str_tag_to_check = tag_to_check[tag_w_parameter.span()[0]:tag_w_parameter.span()[1]]
-		parameter = str_tag_to_check.split(':')[1][1:-2]
+	opened_tag = re.search('<[a-z_]+', tag_to_check)
+	if opened_tag:
+		begin, end = opened_tag.span()
 
-	print(tag_name)
+		tag_name = tag_to_check[1 + begin: end]
 
-	if tag_name in tag_list:
-		return (tag_name, parameter) if parameter else (tag_name, '')
+		tag_w_parameter = re.search('<[a-z_\s]+[:|>]+"([^"]*)">', tag_to_check)
+		parameter = None
+		if tag_w_parameter:
+			str_tag_to_check = tag_to_check[tag_w_parameter.span()[0]:tag_w_parameter.span()[1]]
+			parameter = str_tag_to_check.split(':')[1][1:-2]
+
+		# print(tag_name)
+
+		if tag_name in tag_list:
+			return (tag_name, parameter) if parameter else (tag_name, '')
 
 	return None, None
 
 def get_item_details(text):
-	print(f'{text=}')
+	# print(f'{text=}')
 	tag, parameter = get_valid_tag(text)
 
 	return tag, parameter
@@ -77,7 +100,7 @@ def build_json_content(content):
 				idx_p_end = prop_end
 
 
-		print('~~', content[0:idx_p_start], '~')
+		# print('~~', content[0:idx_p_start], '~')
 		if idx_p_start == 0:
 			prop_data_to_add = content
 		else:
@@ -88,10 +111,10 @@ def build_json_content(content):
 		if build:
 			json_format = json_format + '"' + prop_to_add + '":"' + prop_data_to_add.replace('\\', '\\\\', ).replace('"', '\\"', ).replace('\n', '\\n') + '",'
 
-		print('~', content[idx_p_start:idx_p_end], '~')
+		# print('~', content[idx_p_start:idx_p_end], '~')
 
 		prop_to_add = content[idx_p_start:idx_p_end]
-		print(content[idx_p_end:])
+		# print(content[idx_p_end:])
 		content = content[idx_p_end:]
 
 		build = True
@@ -139,12 +162,12 @@ def search_tags(offset):
 
 		tag_name, parameter = get_valid_tag(audit_format[offset + opened_idx_start:offset + opened_idx_end])
 		if not tag_name:
-			print('NOT VALID', audit_format[offset + opened_idx_start:offset + opened_idx_end])
+			# print('NOT VALID', audit_format[offset + opened_idx_start:offset + opened_idx_end])
 			break
 
-		print(f'->({opened_idx_start=}, {first_closed_idx_start=})')
+		# print(f'->({opened_idx_start=}, {first_closed_idx_start=})')
 		if opened_idx_start < first_closed_idx_start:
-			print('entered')
+			# print('entered')
 			opened_idx_begin, closed_idx_end, replace, new_json_format, replace_json = search_tags(offset + opened_idx_end)
 			if replace_json and json_format:
 				json_list.append(new_json_format)
@@ -173,7 +196,7 @@ def search_tags(offset):
 						'"content":' + json_content + ',' +\
 						'"parameter":"' + parameter + '"}'
 					json_child = json.loads(escaped)
-				print(escaped)
+				# print(escaped)
 
 				return opened_idx_start, first_closed_idx_end, True, json_child, True
 
@@ -183,13 +206,13 @@ def search_tags(offset):
 		else:
 			break
 
-	print('returning -1')
+	# print('returning -1')
 	return -1, -1, False, None, False
 
 if __name__ == '__main__':
 	audit_format = read('CIS_Ubuntu_20.04_LTS_v1.1.0_Workstation_L1.audit')
 	json_format = search_tags(0)[3]
-	print(json_format)
+	# print(json_format)
 
 	json_file = open("audit.json", "w")
 	json_file.write(json.dumps(json_format))
