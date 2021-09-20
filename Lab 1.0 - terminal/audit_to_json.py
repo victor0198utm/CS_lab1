@@ -5,6 +5,7 @@ import re
 
 audit_format = ''
 
+
 def read(filename):
 	f = open(filename, "r")
 	audit_format = f.read()
@@ -25,8 +26,9 @@ def read(filename):
 			offset = offset + idx2
 
 	print(f'{idx1=} {idx2=}')
-	print('->',audit_format[:500])
+	print('->', audit_format[:500])
 	return audit_format
+
 
 def get_valid_tag(tag_to_check):
 	tag_list = ['check_type', 'if', 'condition', 'then', 'else', 'report', 'custom_item', 'item']
@@ -51,11 +53,13 @@ def get_valid_tag(tag_to_check):
 
 	return None, None
 
+
 def get_item_details(text):
 	# print(f'{text=}')
 	tag, parameter = get_valid_tag(text)
 
 	return tag, parameter
+
 
 def opened_tag_indices(text):
 	opened = re.search('<[a-z_\s]+>', text)
@@ -76,10 +80,41 @@ def opened_tag_indices(text):
 
 	return opened_idx_start, opened_idx_end
 
-def build_json_content(content):
 
-	properties = ["type", "cmd", "description", "info", "expect", "reference", "see_also",
-				  "collection", "fieldsSelector", "query", "expect", "solution", "severity"]
+def check_valid_prop(content, idx):
+	found_space, found_new_line = False, False
+	while idx > 0:
+		if not found_new_line and content[idx] == ' ':
+			found_space = True
+		elif found_space and content[idx] == '\n':
+			found_new_line = True
+			break
+		else:
+			return False
+
+		idx = idx - 1
+	return (idx == 0 and found_space) or (found_space and found_new_line)
+
+
+def remove_notes(content):
+	while True:
+		the_note = re.search('\\n# Note:', content)
+		if the_note:
+			ending = re.search('\\n', content[the_note.span()[1]:])
+			if ending:
+				content = content[:the_note.span()[0]+1] + content[the_note.span()[1] + ending.span()[1]:]
+		else:
+			break
+	print(content)
+	return content
+
+
+def build_json_content(content):
+	content = remove_notes(content)
+
+	properties = [" system ", " type ", " cmd ", " description ", " info ", " expect ", " reference ", " see_also ",
+
+				  "file", "regex", " collection ", " fieldsSelector ", " query ", " expect ", " solution ", " severity "]
 
 	json_format = '{'
 	prop_to_add = ''
@@ -89,15 +124,16 @@ def build_json_content(content):
 		idx_p_start = 0
 		idx_p_end = len(content)
 		for prop in properties:
-			prop_idxs = re.search(prop, content)
-			if prop_idxs:
-				prop_start, prop_end = prop_idxs.span()
+			prop_idxes = re.search(prop, content)
+			if prop_idxes:
+				prop_start, prop_end = prop_idxes.span()
 			else:
 				continue
 
 			if idx_p_end > prop_end:
-				idx_p_start = prop_start
-				idx_p_end = prop_end
+				if check_valid_prop(content, prop_start):
+					idx_p_start = prop_start
+					idx_p_end = prop_end
 
 
 		# print('~~', content[0:idx_p_start], '~')
@@ -119,23 +155,19 @@ def build_json_content(content):
 
 		build = True
 
-
 	json_format = json_format[:-1] + '}'
 
 	return json_format
 
 
+def audit_to_json(offset):
 
-def search_tags(offset):
-
-	'''
-	REGEXES:
-	opened tags -> '<[a-z_\s]+>'
-	
-	opened tags with parameters -> '<[a-z_\s]+[:|>]+"([^"]*)">'
-	
-	closed tags -> '</[a-z_]*>'
-	'''
+	# REGEXES:
+	# opened tags -> '<[a-z_\s]+>'
+	#
+	# opened tags with parameters -> '<[a-z_\s]+[:|>]+"([^"]*)">'
+	#
+	# closed tags -> '</[a-z_]*>'
 
 	skip = ['user', 'username', 'password', 'package_name', 'service_name', 'protocol', 'port']
 
@@ -143,7 +175,6 @@ def search_tags(offset):
 	json_format = None
 	json_child = None
 	json_list = list()
-
 
 	while True:
 	
@@ -159,7 +190,6 @@ def search_tags(offset):
 		if not opened_idx_start and not opened_idx_end:
 			break
 
-
 		tag_name, parameter = get_valid_tag(audit_format[offset + opened_idx_start:offset + opened_idx_end])
 		if not tag_name:
 			# print('NOT VALID', audit_format[offset + opened_idx_start:offset + opened_idx_end])
@@ -168,7 +198,7 @@ def search_tags(offset):
 		# print(f'->({opened_idx_start=}, {first_closed_idx_start=})')
 		if opened_idx_start < first_closed_idx_start:
 			# print('entered')
-			opened_idx_begin, closed_idx_end, replace, new_json_format, replace_json = search_tags(offset + opened_idx_end)
+			opened_idx_begin, closed_idx_end, replace, new_json_format, replace_json = audit_to_json(offset + opened_idx_end)
 			if replace_json and json_format:
 				json_list.append(new_json_format)
 			else:
@@ -182,8 +212,8 @@ def search_tags(offset):
 			if opened_idx_begin == -1 and closed_idx_end == -1:
 
 				if json_format:
-					escaped = '{"name":"' + audit_format[offset + opened_idx_start:offset + opened_idx_end]\
-						.replace('"','\\"',).replace('\n','\\n') + '"' + '}'
+					escaped = '{"tag":"' + audit_format[offset + opened_idx_start:offset + opened_idx_end]\
+						.replace('"', '\\"',).replace('\n', '\\n') + '"' + '}'
 					json_child = json.loads(escaped)
 					json_child['the_data'] = json_list
 				else:
@@ -191,6 +221,7 @@ def search_tags(offset):
 					content = audit_format[offset + opened_idx_end + 1:offset + first_closed_idx_start-1]
 
 					json_content = build_json_content(content)
+					# print(content)
 
 					escaped = '{"item":"' + item_tag + '",' +\
 						'"content":' + json_content + ',' +\
@@ -209,9 +240,10 @@ def search_tags(offset):
 	# print('returning -1')
 	return -1, -1, False, None, False
 
+
 if __name__ == '__main__':
 	audit_format = read('CIS_Ubuntu_20.04_LTS_v1.1.0_Workstation_L1.audit')
-	json_format = search_tags(0)[3]
+	json_format = audit_to_json(0)[3]
 	# print(json_format)
 
 	json_file = open("audit.json", "w")
