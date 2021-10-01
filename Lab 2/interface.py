@@ -112,9 +112,8 @@ def build_json_content(content):
     content = remove_notes(content)
 
     properties = [" name ", " system ", " type ", " cmd ", " description ", " info ", " expect ", " reference ",
-                  " see_also ", "file", "regex", " collection ", " fieldsSelector ", " query ", " expect ",
-                  " solution ", " severity "]
-
+                  " see_also ", " file ", " regex ", " collection ", " fieldsSelector ", " query ", " expect ",
+                  " solution ", " severity ", " owner ", " mask ", " group "]
     json_format = '{'
     prop_to_add = ''
     prop_data_to_add = ''
@@ -211,7 +210,7 @@ def audit_to_json(offset):
                     json_child = json.loads(escaped)
                     if parameter:
                         json_child['parameter'] = parameter
-                    json_child['the_data'] = json_list
+                    json_child['data'] = json_list
                 else:
                     item_tag, parameter = get_item_details(
                         audit_format[offset + opened_idx_start:offset + first_closed_idx_end])
@@ -361,7 +360,7 @@ class Application(tk.Tk):
                 self.json_tree(uid, dictionary[key])
                 self._treeview.item(parent, open=True)
             elif isinstance(dictionary[key], list):
-                self._treeview.insert(parent, 'end', uid, text=key)
+                self._treeview.insert(parent, 'end', uid, text=key + '[]')
                 self.json_tree(uid,
                                dict([(i, x) for i, x in enumerate(dictionary[key])]))
                 self._treeview.item(parent, open=True)
@@ -369,16 +368,22 @@ class Application(tk.Tk):
                 value = dictionary[key]
                 if value is None:
                     value = 'None'
-                self._treeview.insert(parent, 'end', uid, text=key, value=value)
+
+                if key in ['tag', 'parameter', 'item']:
+                    self._treeview.insert(parent, 'end', uid, text=value)
+                else:
+                    self._treeview.insert(parent, 'end', uid, text=key, value=value)
 
     def run_selected(self):
-        # run = Run(self._json_data)
-        pass
+        Run(self._json_data)
 
     def run_all(self):
         pass
 
     def export_audit(self):
+        pass
+
+    def export_json(self):
         pass
 
     def createWidgets(self):
@@ -396,6 +401,7 @@ class Application(tk.Tk):
 
         export_menu = tk.Menu(menubar, tearoff=0)
         export_menu.add_command(label="As audit", command=self.export_audit)
+        export_menu.add_command(label="As JSON", command=self.export_json)
         menubar.add_cascade(label="Export", menu=export_menu)
 
         self.config(menu=menubar)
@@ -419,7 +425,6 @@ class Start(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Audit manager')
-        self.geometry('300x100')
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         self.createWidgets()
@@ -468,21 +473,30 @@ class Start(tk.Tk):
 class Run(tk.Tk):
 
     _json_data = None
+    _list_data = list()
+    _list_data_selected = list()
+    _modify = None
 
     def __init__(self, json_data):
         super().__init__()
-        self.title('Run audit')
-        self.geometry('1000x600')
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(2, weight=1)
-        self.createWidgets()
-        self.position_window()
-
+        self.withdraw()
         self._json_data = json_data
 
+        if self._json_data:
+            self.title('Run audit')
+            self.rowconfigure(0, weight=1)
+            self.columnconfigure(1, weight=1)
+            self.createWidgets()
+            self.position_window()
+            self.deiconify()
+
+        else:
+            tk.messagebox.showinfo('Warning', 'There is no audit opened in this session.')
+            self.destroy()
+
     def position_window(self):
-        w = 300  # width for the Tk root
-        h = 100  # height for the Tk root
+        w = 1230  # width for the Tk root
+        h = 650  # height for the Tk root
         ws = self.winfo_screenwidth()  # width of the screen
         hs = self.winfo_screenheight()  # height of the screen
         x = (ws / 2) - (w / 2)
@@ -491,10 +505,225 @@ class Run(tk.Tk):
         self.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
     def createWidgets(self):
-        button_continue = ttk.Button(self, text="Open recent project", command=self.position_window)
-        button_continue.place(x=140, y=20)
-        button_open = ttk.Button(self, text="Open audit file", command=self.position_window)
-        button_open.place(x=140, y=60)
+
+        the_frame = ttk.Frame(self, padding="3")
+        the_frame.grid(row=0, column=0, rowspan=2)
+
+        entry = ttk.Entry(the_frame)
+        self._entry = entry
+        entry.pack(side='top', expand='yes', fill='x')
+
+        entry.bind("<KeyRelease>", self.find_item)
+        self._entry.focus_set()
+
+        scrollbar = tk.Scrollbar(the_frame, orient="vertical")
+        scrollbar2 = tk.Scrollbar(the_frame, orient="horizontal")
+        lb = tk.Listbox(the_frame, width=80, height=45, yscrollcommand=scrollbar.set, xscrollcommand=scrollbar2.set)
+        lb.bind('<<ListboxSelect>>', self.onselect)
+        self._lb = lb
+        scrollbar.config(command=lb.yview)
+        scrollbar.pack(side="right", fill="y")
+        scrollbar2.config(command=lb.xview)
+        scrollbar2.pack(side="bottom", fill="x")
+        lb.pack(side='top', expand='yes', fill='both')
+
+        self.load_items(lb, self._json_data)
+
+        action_frame = tk.LabelFrame(self, text="Item details:", padx=10, pady=10)
+        action_frame.grid(row=0, column=1, sticky='NW')
+
+        label1 = tk.Label(action_frame, text='description', relief='flat', padx=5, pady=5)
+        label1.grid(row=0, column=0, sticky='w')
+        label2 = tk.Label(action_frame, text='info', relief='flat', padx=5, pady=5)
+        label2.grid(row=1, column=0, sticky='w')
+        label3 = tk.Label(action_frame, text='solution', relief='flat', padx=5, pady=5)
+        label3.grid(row=2, column=0, sticky='w')
+        label4 = tk.Label(action_frame, text='cmd', relief='flat', padx=5, pady=5)
+        label4.grid(row=3, column=0, sticky='w')
+        label5 = tk.Label(action_frame, text='file', relief='flat', padx=5, pady=5)
+        label5.grid(row=4, column=0, sticky='w')
+        label6 = tk.Label(action_frame, text='regex', relief='flat', padx=5, pady=5)
+        label6.grid(row=5, column=0, sticky='w')
+        label7 = tk.Label(action_frame, text='expect', relief='flat', padx=5, pady=5)
+        label7.grid(row=6, column=0, sticky='w')
+
+        entry1 = tk.Entry(action_frame, width=75)
+        entry1.grid(row=0, column=1, sticky='w')
+        entry2 = tk.Entry(action_frame, width=75)
+        entry2.grid(row=1, column=1, sticky='w')
+        entry3 = tk.Entry(action_frame, width=75)
+        entry3.grid(row=2, column=1, sticky='w')
+        entry4 = tk.Entry(action_frame, width=75)
+        entry4.grid(row=3, column=1, sticky='w')
+        entry5 = tk.Entry(action_frame, width=75)
+        entry5.grid(row=4, column=1, sticky='w')
+        entry6 = tk.Entry(action_frame, width=75)
+        entry6.grid(row=5, column=1, sticky='w')
+        entry7 = tk.Entry(action_frame, width=75)
+        entry7.grid(row=6, column=1, sticky='w')
+
+        self._description = entry1
+        self._info = entry2
+        self._solution = entry3
+        self._cmd = entry4
+        self._file = entry5
+        self._regex = entry6
+        self._expect = entry7
+
+        selected_frame = ttk.Frame(self, padding="3")
+        selected_frame.grid(row=1, column=1)
+
+        btn_add = tk.Button(selected_frame, text="Add item", command=self.add_selected_item)
+        btn_add.grid(row=0, column=0)
+        btn_add = tk.Button(selected_frame, text="Remove item", command=self.remove_selected_item)
+        btn_add.grid(row=0, column=1)
+        btn_add = tk.Button(selected_frame, text="Add all items", command=self.add_all_items)
+        btn_add.grid(row=0, column=2)
+        btn_add = tk.Button(selected_frame, text="Remove all items", command=self.remove_all_items)
+        btn_add.grid(row=0, column=3)
+
+        frame_list = tk.Frame(selected_frame)
+        frame_list.grid(row=1, columnspan=4)
+
+        scrollbar_s = tk.Scrollbar(frame_list, orient="vertical")
+        scrollbar_s_2 = tk.Scrollbar(frame_list, orient="horizontal")
+        lb_selected = tk.Listbox(frame_list, width=83, height=25, yscrollcommand=scrollbar_s.set, xscrollcommand=scrollbar_s_2.set)
+        lb_selected.bind('<<ListboxSelect>>', self.onselect)
+        scrollbar_s.config(command=lb_selected.yview)
+        scrollbar_s.pack(side="right", fill="y")
+        scrollbar_s_2.config(command=lb_selected.xview)
+        scrollbar_s_2.pack(side="bottom", fill="x")
+        lb_selected.pack(side='top', expand='yes', fill='both')
+
+        btn_add = tk.Button(frame_list, text="Run", command=self.add_selected_item)
+        btn_add.pack(side='bottom', expand='yes', fill='both')
+
+        self._lb_selected = lb_selected
+
+    def add_selected_item(self):
+        if not self._description.get() in self._list_data_selected:
+            self._list_data_selected.append(self._description.get())
+            self._lb_selected.insert('end', self._description.get())
+        print(self._list_data_selected)
+
+    def remove_selected_item(self):
+        self._lb_selected.delete(0, 'end')
+        tmp_list = list(self._list_data_selected)
+        
+        self._list_data_selected = list()
+        print(f'{tmp_list=}')
+        print(f'{self._description.get()=}')
+        for item in tmp_list:
+            if item != self._description.get():
+                self._lb_selected.insert('end', item)
+                self._list_data_selected.append(item)
+        print(self._list_data_selected)
+
+    def remove_all_items(self):
+        self._lb_selected.delete(0, 'end')
+        self._list_data_selected = list()
+        print(self._list_data_selected)
+
+    def add_all_items(self):
+        self._lb_selected.delete(0, 'end')
+        for tup in self._list_data:
+            self._list_data_selected.append(tup[1])
+            self._lb_selected.insert('end', tup[1])
+        print(self._list_data_selected)
+
+    def find_item(self, event):
+        search_string = self._entry.get()
+        print(search_string)
+        self._lb.delete(0, 'end')
+
+        for tup in self._list_data:
+            result_obj = tup[1].find(search_string)
+            if result_obj >= 0:
+                self._lb.insert('end', tup[1])
+
+    def onselect(self, evt):
+        w = evt.widget
+        if w.curselection():
+            index = int(w.curselection()[0])
+            value = w.get(index)
+            for tup in self._list_data:
+                if tup[1].find(value) == 0:
+                    self.search_full_item(self._json_data, tup[0])
+
+    def search_full_item(self, dictionary, search_description):
+        for key in dictionary:
+            if isinstance(dictionary[key], dict):
+                if key == 'content':
+                    self.select_item(dictionary[key], search_description)
+
+                self.search_full_item(dictionary[key], search_description)
+
+            elif isinstance(dictionary[key], list):
+
+                self.search_full_item(dict([(i, x) for i, x in enumerate(dictionary[key])]), search_description)
+            else:
+                if dictionary[key] in ['condition', 'report']:
+                    break
+
+    def select_item(self, dictionary, search_description):
+        item = None
+
+        if ' description ' in dictionary.keys():
+            if dictionary[' description '].find(search_description) == 0:
+                print(dictionary)
+                item = dictionary
+
+        properties = [" name ", " system ", " type ", " cmd ", " description ", " info ", " expect ", " reference ",
+                      " see_also ", " file ", " regex ", " collection ", " fieldsSelector ", " query ", " expect ",
+                      " solution ", " severity ", " owner ", " mask ", " group "]
+        if item:
+            for prop in properties:
+                if prop in item.keys():
+                    print(prop, item[prop])
+                    self._description.delete(0,"end")
+                    self._description.insert(0, item[" description "][1:].replace('\n', '').replace('\"',''))
+                    self._info.delete(0,"end")
+                    self._info.insert(0, item[" info "][1:].replace('\n', '').replace('\"',''))
+                    self._solution.delete(0,"end")
+                    self._solution.insert(0, item[" solution "][1:].replace('\n', '').replace('\"',''))
+
+                    self._cmd.delete(0,"end")
+                    if " cmd " in item.keys():
+                        self._cmd.insert(0, item[" cmd "][1:].replace('\n', '').replace('\"',''))
+
+                    self._file.delete(0, "end")
+                    if " file " in item.keys():
+                        self._file.insert(0, item[" file "][1:].replace('\n', '').replace('\"', ''))
+
+                    self._regex.delete(0, "end")
+                    if " regex " in item.keys():
+                        self._regex.insert(0, item[" regex "][1:].replace('\n', '').replace('\"', ''))
+
+                    self._expect.delete(0,"end")
+                    self._expect.insert(0, item[" expect "][1:].replace('\n', '').replace('\"',''))
+
+    def load_items(self, lb, dictionary):
+        for key in dictionary:
+            if isinstance(dictionary[key], dict):
+                if key == 'content':
+                    print(dictionary[key])
+                    self.add_item(lb, dictionary[key])
+
+                self.load_items(lb, dictionary[key])
+
+            elif isinstance(dictionary[key], list):
+                # print('list')
+                self.load_items(lb, dict([(i, x) for i, x in enumerate(dictionary[key])]))
+            else:
+                if dictionary[key] in ['condition', 'report']:
+                    break
+
+    def add_item(self, lb, dictionary):
+        print(dictionary.keys())
+        if ' description ' in dictionary.keys():
+            show_string = dictionary[' description '][2:].replace('\n', '').replace('\"','')
+            self._list_data.append((dictionary[' description '], show_string))
+            lb.insert('end', show_string)
 
 
 if __name__ == '__main__':
