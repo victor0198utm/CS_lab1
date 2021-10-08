@@ -243,6 +243,7 @@ class Application(tk.Tk):
     _conn = None
     _insert_cursor = None
     _json_data = None
+    _cursor = None
 
     def __init__(self):
         super().__init__()
@@ -317,17 +318,17 @@ class Application(tk.Tk):
         for key in dictionary:
             uid = uuid.uuid4()
             if isinstance(dictionary[key], dict):
-                self._insert_cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, None))
+                self._cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, None))
                 self.load_file_to_db(uid, dictionary[key])
             elif isinstance(dictionary[key], list):
-                self._insert_cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, None))
+                self._cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, None))
                 self.load_file_to_db(uid,
                                dict([(i, x) for i, x in enumerate(dictionary[key])]))
             else:
                 value = dictionary[key]
                 if value is None:
                     value = 'None'
-                self._insert_cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, value))
+                self._cursor.execute("insert into instructions values (?, ?, ?, ?)", (str(uid), str(parent), key, value))
 
     def wirte_to_db(self, json_data):
 
@@ -335,13 +336,18 @@ class Application(tk.Tk):
 
         self.build_database()
 
-        self._insert_cursor = self._conn.cursor()
+        self._cursor = self._conn.cursor()
 
-        first_uid = uuid.uuid4()
-        self._insert_cursor.execute("insert into audits(first_id, title) values (?, ?)", (str(first_uid), self._filename))
+        self._cursor.execute(f"SELECT * FROM audits WHERE audits.title like '{self._filename}'")
 
-        self.load_file_to_db(first_uid, json_data)
-        self._insert_cursor.close()
+        rows = self._cursor.fetchall()
+
+        if not rows:
+            first_uid = uuid.uuid4()
+            self._cursor.execute("insert into audits(first_id, title) values (?, ?)", (str(first_uid), self._filename))
+            self.load_file_to_db(first_uid, json_data)
+
+        self._cursor.close()
 
         self._conn.commit()
         self._conn.close()
@@ -375,7 +381,7 @@ class Application(tk.Tk):
                     self._treeview.insert(parent, 'end', uid, text=key, value=value)
 
     def run_selected(self):
-        Run(self._json_data)
+        Run(self._json_data, self._filename)
 
     def run_all(self):
         pass
@@ -476,11 +482,13 @@ class Run(tk.Tk):
     _list_data = list()
     _list_data_selected = list()
     _modify = None
+    _filename = None
 
-    def __init__(self, json_data):
+    def __init__(self, json_data, filename):
         super().__init__()
         self.withdraw()
         self._json_data = json_data
+        self._filename = filename
 
         if self._json_data:
             self.title('Run audit')
@@ -583,7 +591,7 @@ class Run(tk.Tk):
         btn_add.grid(row=0, column=3)
 
         frame_list = tk.Frame(selected_frame)
-        frame_list.grid(row=1, columnspan=4)
+        frame_list.grid(row=1, columnspan=5)
 
         scrollbar_s = tk.Scrollbar(frame_list, orient="vertical")
         scrollbar_s_2 = tk.Scrollbar(frame_list, orient="horizontal")
@@ -724,6 +732,9 @@ class Run(tk.Tk):
             show_string = dictionary[' description '][2:].replace('\n', '').replace('\"','')
             self._list_data.append((dictionary[' description '], show_string))
             lb.insert('end', show_string)
+
+    def save_file(self):
+        f = filedialog.asksaveasfile(initialfile='Untitled.txt', defaultextension=".txt", filetypes=[("All Files", "*.*"), ("Text Documents", "*.txt")])
 
 
 if __name__ == '__main__':
