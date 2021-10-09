@@ -31,3 +31,10 @@ Click on "Save audit" to save an audit with only the selected items.
 Save the file:
 <img title="img" alt="img" src="/examples/Screenshot from 2021-10-09 14-37-44.png">
 
+## Lab 3
+After selecting a few items:
+<img title="img" alt="img" src="/examples/Screenshot from 2021-10-09 18-24-12.png">
+
+Run them to see their status:
+<img title="img" alt="img" src="/examples/Screenshot from 2021-10-09 18-23-36.png">
+

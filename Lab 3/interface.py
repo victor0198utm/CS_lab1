@@ -114,7 +114,7 @@ def build_json_content(content):
 
     properties = [" name ", " system ", " type ", " cmd ", " description ", " info ", " expect ", " reference ",
                   " see_also ", " file ", " regex ", " collection ", " fieldsSelector ", " query ", " expect ",
-                  " solution ", " severity ", " owner ", " mask ", " group "]
+                  " solution ", " severity ", " owner ", " mask ", " group ", " content ", "is_substring"]
     json_format = '{'
     prop_to_add = ''
     prop_data_to_add = ''
@@ -567,27 +567,43 @@ class Select(tk.Tk):
         self.build_audit(self._json_data, names)
 
         print(self._to_run)
-
+        commands_list = list()
         for custom_item in self._to_run:
             command = None
             expectation = None
+            description = None
             for k in custom_item.keys():
                 if k.find('cmd') >= 0:
                     processed_item = self.process_item(custom_item[k])
                     if processed_item:
                         print('ok', processed_item)
                         command = processed_item
+                        
                 if k.find('expect') >= 0:
                     processed_item = self.process_item(custom_item[k])
                     if processed_item:
                         print('ok', processed_item)
                         expectation = processed_item
-                    # f.write(' ' * 8 + str(k) + ' : ' + str(custom_item[k]).rstrip() + '\n')
+                        
+                if k.find('description') >= 0:
+                    processed_item = self.process_item(custom_item[k])
+                    if processed_item:
+                        print('ok', processed_item)
+                        description = processed_item
+                        
             print('ITEM =', command, '|', expectation)
 
             if command and expectation:
-                test = subprocess.Popen(["ping", "-W", "2", "-c", "1", "192.168.1.70"], stdout=subprocess.PIPE)
-                print(test.communicate())
+                commands_list.append([description, command, expectation])
+            else:
+                print('Was notable to process:')
+                print(f'{command=}')
+                print(f'{expectation=}')
+        
+        self.run_list(commands_list)
+
+    def run_list(self, commands_list):
+        Run(commands_list)
 
     def process_item(self, item):
         item = item.replace('\n','').lstrip().rstrip()
@@ -798,6 +814,69 @@ class Select(tk.Tk):
                 if show_string.find(name) >= 0:
                     return dictionary
         return None
+
+
+class Run(tk.Tk):
+
+    _commands_list = None
+    _tv = None
+    
+    def __init__(self, commands_list):
+        super().__init__()
+        self.title('Running commands')
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.createWidgets()
+        self.position_window()
+        self._commands_list = commands_list
+        self.populate_list()
+
+    def position_window(self):
+        w = 1100  # width for the Tk root
+        h = 500  # height for the Tk root
+        ws = self.winfo_screenwidth()  # width of the screen
+        hs = self.winfo_screenheight()  # height of the screen
+        x = (ws / 2) - (w / 2)
+        y = (hs / 2) - (h / 2) - 100
+
+        self.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+
+    def createWidgets(self):
+        columns = ('#1', '#2', '#3', '#4')
+        tree = ttk.Treeview(self, columns=columns, show='headings')
+        #tree.heading('#0', text='Open an .audit file..', anchor='w')
+        tree.heading('#1', text='Status')
+        tree.heading('#2', text='Description')
+        tree.heading('#3', text='Command')
+        tree.heading('#4', text='Expected output')
+        tree.column('#1', width=30)
+        tree.column('#2', width=300)
+        tree.column('#3', width=100)
+        tree.pack(fill=tk.BOTH, expand=1)
+        self._tv = tree
+
+        
+    def populate_list(self):
+        for command in self._commands_list:
+            result = '-'
+            exec_cmd = command[1].split(' ')
+            print(exec_cmd)
+            test = subprocess.Popen(exec_cmd, stdout=subprocess.PIPE)
+            output = test.communicate()[0].decode("utf-8")
+            exp = command[2].replace('\n','').lstrip().rstrip().replace('\\\\', '\\')
+            print('>>>>', output, exp, output.find(exp))
+            if output.find(exp) >= 0:
+                result = 'PASSED'
+            else:
+                result = 'FAILED'
+                x = re.search(exp, output)
+                if x:
+                    result = 'PASSED'               
+            
+            values = (result, command[0], command[1], command[2])
+            print(values)
+            self._tv.insert('', tk.END, values=values)
 
 
 if __name__ == '__main__':
