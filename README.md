@@ -38,3 +38,5 @@ After selecting a few items:
 Run them to see their status:
 <img title="img" alt="img" src="/examples/Screenshot from 2021-10-09 18-23-36.png">
 
+## Lab 4
+For enforcing the seurity in the ubuntu system, I have to make an algorthm which opens multiple files, finds the needed row with specific parameter, changes parameter values in them and runs some commands afterwards. I cannot do it.
